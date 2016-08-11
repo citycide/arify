@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>index.js - Documentation</title>
+
+    <script src="scripts/prettify/prettify.js"></script>
+    <script src="scripts/prettify/lang-css.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc.css">
+</head>
+<body>
+
+<input type="checkbox" id="nav-trigger" class="nav-trigger" />
+<label for="nav-trigger" class="navicon-button x">
+  <div class="navicon"></div>
+</label>
+
+<label for="nav-trigger" class="overlay"></label>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="Arify.html">Arify</a><ul class='methods'><li data-type='method'><a href="Arify.html#add">add</a></li><li data-type='method'><a href="Arify.html#any">any</a></li><li data-type='method'><a href="Arify.html#anyForm">anyForm</a></li><li data-type='method'><a href="Arify.html#array">array</a></li><li data-type='method'><a href="Arify.html#boolean">boolean</a></li><li data-type='method'><a href="Arify.html#cls">cls</a></li><li data-type='method'><a href="Arify.html#date">date</a></li><li data-type='method'><a href="Arify.html#empty">empty</a></li><li data-type='method'><a href="Arify.html#form">form</a></li><li data-type='method'><a href="Arify.html#function">function</a></li><li data-type='method'><a href="Arify.html#match">match</a></li><li data-type='method'><a href="Arify.html#nonEmpty">nonEmpty</a></li><li data-type='method'><a href="Arify.html#number">number</a></li><li data-type='method'><a href="Arify.html#object">object</a></li><li data-type='method'><a href="Arify.html#regExp">regExp</a></li><li data-type='method'><a href="Arify.html#string">string</a></li><li data-type='method'><a href="Arify.html#test">test</a></li><li data-type='method'><a href="Arify.html#type">type</a></li></ul></li></ul>
+</nav>
+
+<div id="main">
+    
+    <h1 class="page-title">index.js</h1>
+    
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>import util from './util'
+
+export default function arify (setup, fn, context) {
+  const instance = new Arify()
+  setup(instance)
+
+  instance.validate()
+
+  // This is the function actually called by the end user
+  return function (...args) {
+    return instance.process(args, fn, context || this)
+  }
+}
+
+arify.error = function (msg) {
+  const e = new Error(msg)
+  e.name = 'ArifyError'
+  throw e
+}
+
+// an identifier used to match forms
+const exactMatch = Symbol()
+
+class Arify {
+  /**
+   * The constructor that provides methods to configure arified functions.
+   * It is not available directly - you access it when calling the `arify`
+   * function, the first argument of which is an instance of this class.
+   */
+  constructor () {
+    Object.assign(this, {
+      _parameterNames: [],
+      _descriptors: {},
+      _forms: [],
+      _formMap: {},
+      _flags: [
+        { name: 'optional', symbol: '?' },
+        { name: 'noLone', symbol: '*' }
+      ]
+    })
+
+    const flagsList = this._flags.map(flag => `\\${flag.symbol}`).join('')
+    this._flagsRegex = new RegExp(`^([${flagsList}]+)`)
+    this._flagsMap = {}
+
+    const length = this._flags.length
+    for (let i = 0; i &lt; length; i++) {
+      const flag = this._flags[i]
+      this._flagsMap[flag.symbol] = flag.name
+    }
+  }
+
+  validate () {}
+
+  /**
+   * @param {string} name
+   * @returns {{ noLone: boolean }}
+   * @private
+   */
+  getFlags (name) {
+    const flagsObject = {}
+    const match = name.match(this._flagsRegex)
+
+    if (!match) return flagsObject
+
+    const flagsList = match[0].split('')
+    const length = flagsList.length
+
+    for (let i = 0; i &lt; length; i++) {
+      const key = this._flagsMap[flagsList[i]]
+      flagsObject[key] = true
+    }
+
+    return flagsObject
+  }
+
+  removeFlags (name) {
+    return name.replace(this._flagsRegex, '')
+  }
+
+  process (args, fn, context) {
+    const form = this.getBestMatch(args)
+
+    if (!form) {
+      arify.error(util.format(
+        `Arguments '{0}' do not match any specified form`, args.join(', ')
+      ))
+
+      return
+    }
+
+    const result = this.processArguments(form, args)
+    const names = form.names || []
+
+    return fn.call(context, result.opt, result.rest, names, args)
+  }
+
+  getBestMatch (args) {
+    const forms = this._forms
+    let bestMatch
+    let bestRating
+
+    const length = forms.length
+    for (let i = 0; i &lt; length; i++) {
+      const form = forms[i]
+
+      if (form.nonEmpty) {
+        if (!args.length) return false
+        continue
+      }
+
+      const a = this.rateForm(form, args)
+      if (a === exactMatch) return form
+
+      const b = bestMatch ? bestRating : -1
+
+      if (a !== -1 &amp;&amp; a > b) {
+        bestMatch = form
+        bestRating = a
+      }
+    }
+
+    return bestMatch
+  }
+
+  /**
+   *  -1 means no match
+   *  +1 for each non-any matching parameter
+   *  Symbol if the form exactly matches
+   * @returns {number|Symbol}
+   * @private
+   */
+  rateForm (form, args) {
+    if (!args.length) {
+      if (form.empty) return exactMatch
+      return -1
+    }
+
+    if (form.empty) return -1
+    if (form.any) return 0
+    const names = form.names
+
+    let rating = -1
+    for (let i = 0; i &lt; names.length; i++) {
+      const arg = args[i]
+      const name = names[i]
+      const desc = this._descriptors[name]
+
+      if (!desc) {
+        arify.error(util.format('Unknown parameter: {0}', name))
+        return -1
+      }
+
+      if (!this.checkArg(name, desc, arg)) {
+        return -1
+      } else if (!desc.any) {
+        rating += 1
+      }
+    }
+
+    return rating
+  }
+
+  processArguments (form, args) {
+    const names = form.names || []
+    const result = { opt: {}, rest: args.slice(names.length) }
+
+    for (const prop in this._descriptors) {
+      if (!this._descriptors.hasOwnProperty(prop)) continue
+      const defaultValue = this.getDefaultValue(this._descriptors[prop])
+      if (util.isDefined(defaultValue)) result.opt[prop] = defaultValue
+    }
+
+    if (!form.empty) {
+      for (let i = 0; i &lt; names.length; i++) {
+        result.opt[names[i]] = args[i]
+      }
+    }
+
+    return result
+  }
+
+  /**
+   * @param {Object} descriptor
+   * @param {Function} descriptor.defaultGenerator
+   * @param {*} descriptor.defaultValue
+   * @returns {*}
+   * @private
+   */
+  getDefaultValue (descriptor) {
+    if (util.isFunction(descriptor.defaultGenerator)) {
+      return descriptor.defaultGenerator()
+    } else {
+      return descriptor.defaultValue
+    }
+  }
+
+  checkArg (name, descriptor, value) {
+    if (descriptor.any) return true
+
+    if ('type' in descriptor) {
+      return (value !== null &amp;&amp; typeof value === descriptor.type)
+    }
+
+    if ('cls' in descriptor) {
+      return (value instanceof descriptor.cls)
+    }
+
+    if ('test' in descriptor) {
+      return (descriptor.test(value))
+    }
+
+    let str = `Invalid descriptor '{0}'. `
+    str += `Must contain a type, cls, or test property for matching arguments.`
+
+    const msg = util.format(str, name)
+    arify.error(msg)
+
+    return false
+  }
+
+  _removeForms (testFn) {
+    const forms = this._forms
+
+    for (let i = forms.length - 1; i >= 0; i--) {
+      if (testFn(forms[i])) forms.splice(i, 1)
+    }
+
+    return this
+  }
+
+  forms () {
+    this.form.apply(this, this._parameterNames.map(name => `?${name}`))
+  }
+
+  /**
+   * `v.form` is the method arify uses to build all the `forms`
+   * your function can accept. It can be called multiple times
+   * in order to allow the wrapped function to accept multiple
+   * forms, or use the `?` (optional) or `*` ('no lone') modifiers
+   * to build many forms with a single call.
+   *
+   * The strings passed to `v.form` should match the descriptor
+   * names added via `v.str | obj | num` etc.
+   *
+   * The arify instance is returned to allow chainable calls.
+   *
+   * @param {...string} names
+   *  Any number of strings matching your descriptor names
+   *
+   * @example
+   *
+   * const arified = arify(v => {
+   *   v.str('one')
+   *    .num('two')
+   *    .obj('opt')
+   *
+   *   // optional 2nd &amp; 3rd arguments by calling `v.form` again
+   *   v.form('one')
+   *   v.form('one', 'two')
+   *   v.form('one', 'two', 'opt')
+   *
+   *   // but you can shorten that to one line
+   *   v.form('one', '?two', '?opt')
+   *
+   *   // add the `*` 'noLone' modifier to require any second argument
+   *   v.form('*one', '?two', '?opt')
+   * }, args => console.log(args))
+   */
+  form (...names) {
+    const mapKey = names.join(',')
+    const length = names.length
+
+    let i
+    let noLoneCount = 0
+
+    if (this._formMap.hasOwnProperty(mapKey)) return this
+    if (!names.length) return this.empty()
+
+    for (i = 0; i &lt; length; i++) {
+      if (this.getFlags(names[i]).noLone) {
+        noLoneCount += 1
+      }
+    }
+
+    if (noLoneCount === length) return this
+
+    // Mark this form as added
+    this._formMap[mapKey] = true
+
+    // Add the form
+    this._forms.push({
+      positional: true,
+      names: names.map(this.removeFlags, this)
+    })
+
+    // Recursively add more forms if there are optional parameters.
+    // Add these forms backwards because we want the first to appear
+    // to be the first to match.
+    for (i = length - 1; i >= 0; i--) {
+      if (this.getFlags(names[i]).optional) {
+        this.form.apply(
+          this, names.slice(0, i).concat(names.slice(i + 1))
+        )
+      }
+    }
+
+    return this
+  }
+
+  /**
+   * Require the arified function to be called with exactly
+   * zero arguments.
+   */
+  empty () {
+    const mapKey = '*empty'
+
+    if (this._formMap.hasOwnProperty(mapKey)) return this
+
+    this._removeForms(form => form.nonEmpty || form.empty)
+    this._forms.push({ empty: true })
+    this._formMap[mapKey] = true
+
+    return this
+  }
+
+  /**
+   * Require the arified function to be called with one or
+   * more arguments, ie. it cannot be called with no arguments.
+   */
+  nonEmpty () {
+    const mapKey = '*nonEmpty'
+
+    if (this._formMap.hasOwnProperty(mapKey)) return this
+
+    this._removeForms(form => form.empty)
+    this._forms.push({ nonEmpty: true })
+    this._formMap[mapKey] = true
+
+    return this
+  }
+
+  /**
+   * Allow any configuration of arguments to an arified function.
+   * The `args` argument to the arified function will be null, and
+   * any arguments passed to the arified function will instead be
+   * found in the `rest` array argument.
+   */
+  anyForm () {
+    this._forms.push({ any: true })
+    return this
+  }
+
+  /**
+   * For more advanced type requirements on arguments,
+   * use `v.add`. The first argument is the name of the
+   * argument as a string. The second is a descriptor -
+   * an object describing the requirements.
+   *
+   * Note that when passing any of the descriptor properties
+   * `type`, `cls`, and `test` at the same time, they are used
+   * in that order. In other words, `type` takes precedence,
+   * then `cls`, and finally `test` if no other is provided.
+   *
+   * @param {!string} name
+   * @param {!Object} descriptor
+   * @param {string} [descriptor.type]
+   *  A string representing a JavaScript type, ie. `'string'`.
+   *  Used in a `typeof` comparison against the input value.
+   * @param {Function} [descriptor.cls]
+   *  A class or constructor function. Used in an `instanceof`
+   *  comparison against the input value. Ignored if `type` is
+   *  specified.
+   * @param {Function} [descriptor.test]
+   *  A boolean-returning function used to test the input value.
+   *  Return `true` to validate the input, or `false` to reject.
+   *  Ignored if either of `type` or `cls` are specified.
+   * @param {string} descriptor.description
+   *  A string description that is used if a value doesn't meet the
+   *  requirements. This should make sense in the sentence 'must be
+   *  `...`' ie. `a string longer than 10 characters`.
+   * @param {*} [descriptor.defaultValue]
+   *  Provide a default value in the case this argument is not provided.
+   *  Ignored if `defaultGenerator` is specified.
+   * @param {Function} [descriptor.defaultGenerator]
+   *  A function that returns a value on each call to the wrapped
+   *  function, ie. `() => new Thing()`. If `defaultGenerator` is
+   *  specified and `defaultValue` is also provided, the generator
+   *  will be used while the value is ignored.
+   * @param {boolean} [descriptor.any]
+   *  If `true`, any type will be allowed.
+   *
+   * @example
+   *
+   * const arified = arify(v => {
+   *   v.str('one')
+   *    .add('two', {
+   *      test: value => Array.isArray(value) &amp;&amp; value.length >= 2,
+   *      description: 'an array of at least 2 items',
+   *      defaultValue: [1, 2],
+   *      defaultGenerator: () => Array.from('word')
+   *    })
+   *
+   *    v.form('one', 'two')
+   * }, args => console.log(args))
+   */
+  add (name, descriptor) {
+    this._descriptors[name] = descriptor
+    this._parameterNames.push(name)
+    return this
+  }
+
+  /**
+   * Add an argument to the arified function that is allowed
+   * to be of any type.
+   *
+   * @param {string} name
+   * @param {*} [defaultValue]
+   *
+   * @example
+   *
+   * const arified = arify(v => {
+   *   v.any('key1')
+   *   v.form('key1')
+   * }), args => {
+   *   console.log(`That's valid! :)`)
+   * })
+   *
+   * // all the below would be accepted
+   * // and pretty much anything else
+   * arified('yo!')
+   * arified(2)
+   * arified([])
+   * arified({})
+   * arified(Date.now())
+   */
+  any (name, defaultValue) {
+    return this.add(name, {
+      any: true,
+      description: 'any value',
+      defaultValue
+    })
+  }
+
+  /**
+   * Alternate syntax / shorthand for `v.add` with the
+   * `type` property.
+   *
+   * @param {string} name
+   * @param {string} type
+   * @param {string} description
+   * @param {*} [defaultValue]
+   *
+   * @example
+   *
+   * // Instead of:
+   * v.add('arg', {
+   *   type: 'string',
+   *   description: 'a string',
+   *   defaultValue: 'hello'
+   * })
+   *
+   * // You can do:
+   * v.type('arg', 'string', 'a string', 'hello')
+   */
+  type (name, type, description, defaultValue) {
+    return this.add(name, {
+      type,
+      description,
+      defaultValue
+    })
+  }
+
+  /**
+   * Alternate syntax / shorthand for `v.add` with the
+   * `test` property. Use for more advanced validation
+   * by returning `true` or `false` from the `testFn`
+   * function.
+   *
+   * @param {string} name
+   * @param {Function} testFn
+   * @param {string} description
+   * @param {*} [defaultValue]
+   *
+   * @example
+   *
+   * // Instead of:
+   * v.add('arg', {
+   *   test: val => Array.isArray(val) &amp;&amp; val.length === 4,
+   *   description: 'an array of 4 items',
+   *   defaultValue: [1, 2, 3, 4]
+   * })
+   *
+   * // You can do:
+   * v.test('arg', val => Array.isArray(val), 'an array of 4 items', [1, 2, 3, 4])
+   */
+  test (name, testFn, description, defaultValue) {
+    return this.add(name, {
+      test: testFn,
+      description,
+      defaultValue
+    })
+  }
+
+  /**
+   * Alternate syntax / shorthand for `v.add` with the
+   * `cls` property. Use to require a parameter to be an
+   * instance of the specified class.
+   *
+   * @param {string} name
+   * @param {Function} cls
+   * @param {string} description
+   * @param {*} [defaultValue]
+   *
+   * @example
+   *
+   * class Person {}
+   *
+   * // Instead of:
+   * v.add('arg', {
+   *   cls: Person,
+   *   description: 'a person instance',
+   *   defaultValue: new Person()
+   * })
+   *
+   * // You can do:
+   * v.cls('arg', Person, 'a person instance', new Person())
+   */
+  cls (name, cls, description, defaultValue) {
+    return this.add(name, {
+      cls,
+      description,
+      defaultValue
+    })
+  }
+
+  /**
+   * Add an object-typed parameter to the arified function.
+   *
+   * @param {string} name
+   * @param {Object} [defaultValue]
+   *
+   * @example
+   *
+   * v.object('options', { overwrite: false })
+   *
+   * // shorthand alias
+   * v.obj('options', { overwrite: false })
+   */
+  object (name, defaultValue) {
+    return this.add(name, {
+      test: util.isObject,
+      description: 'an object',
+      defaultValue
+    })
+  }
+
+  /**
+   * Add an array-typed parameter to the arified function.
+   *
+   * @param {string} name
+   * @param {Array} [defaultValue]
+   *
+   * @example
+   *
+   * v.array('words', ['hello', 'world'])
+   *
+   * // shorthand alias
+   * v.arr('words', ['hello', 'world'])
+   */
+  array (name, defaultValue) {
+    return this.add(name, {
+      test: Array.isArray,
+      description: 'an array',
+      defaultValue
+    })
+  }
+
+  /**
+   * Add a function-typed parameter to the arified function.
+   *
+   * @param {string} name
+   * @param {Function} [defaultValue]
+   *
+   * @example
+   *
+   * v.function('log', console.log.bind(console))
+   *
+   * // shorthand alias
+   * v.fun('log', console.log.bind(console))
+   * v.fn('log', console.log.bind(console))
+   */
+  function (name, defaultValue) {
+    return this.add(name, {
+      type: 'function',
+      description: 'a function',
+      defaultValue
+    })
+  }
+
+  /**
+   * Add a string-typed parameter to the arified function.
+   *
+   * @param {string} name
+   * @param {string} [defaultValue]
+   *
+   * @example
+   *
+   * v.string('words', 'hello world')
+   *
+   * // shorthand alias
+   * v.str('words', 'hello world')
+   */
+  string (name, defaultValue) {
+    return this.add(name, {
+      type: 'string',
+      description: 'a string',
+      defaultValue
+    })
+  }
+
+  /**
+   * Add a number-typed parameter to the arified function.
+   *
+   * @param {string} name
+   * @param {number} [defaultValue]
+   *
+   * @example
+   *
+   * v.number('age', 18)
+   *
+   * // shorthand alias
+   * v.num('age', 18)
+   */
+  number (name, defaultValue) {
+    return this.add(name, {
+      type: 'number',
+      description: 'a number',
+      defaultValue
+    })
+  }
+
+  /**
+   * Add a boolean-typed parameter to the arified function.
+   *
+   * @param {string} name
+   * @param {boolean} [defaultValue]
+   *
+   * @example
+   *
+   * v.boolean('gotMoney', true)
+   *
+   * // shorthand alias
+   * v.bln('gotMoney', true)
+   */
+  boolean (name, defaultValue) {
+    return this.add(name, {
+      type: 'boolean',
+      description: 'a boolean',
+      defaultValue
+    })
+  }
+
+  /**
+   * Add a RegExp-typed parameter to the arified function.
+   *
+   * Don't confuse this with `v.match`, which requires input
+   * values to pass `RegExp#test` in order to be valid. Instead,
+   * this is an actual argument of the type `RegExp`.
+   *
+   * @param {string} name
+   * @param {RegExp} [defaultValue]
+   *
+   * @example
+   *
+   * v.regExp('matcher', /^a/)
+   *
+   * // shorthand alias
+   * v.reg('matcher', /^a/)
+   */
+  regExp (name, defaultValue) {
+    return this.add(name, {
+      test: util.isRegExp,
+      description: 'a regular expression',
+      defaultValue
+    })
+  }
+
+  /**
+   * Add a date-typed parameter to the arified function.
+   *
+   * @param {string} name
+   * @param {Date} [defaultValue]
+   *
+   * @example
+   *
+   * v.date('neverForget', new Date(1996, 9, 13))
+   */
+  date (name, defaultValue) {
+    return this.add(name, {
+      cls: Date,
+      description: 'a date',
+      defaultValue
+    })
+  }
+
+  /**
+   * Add a RegExp restriction on a parameter.
+   *
+   * Don't confuse this with `v.regExp`, which adds an
+   * actual parameter of the type `RegExp` to the arified
+   * function. Instead, this method requires input values
+   * to pass `RegExp#test` in order to be considered valid.
+   *
+   * @param {string} name
+   * @param {RegExp} regExp
+   * @param {string} description
+   * @param {string} defaultValue
+   *
+   * @example
+   *
+   * v.match('identifier', /^a/, 'a string starting with a', 'a balloon')
+   */
+  match (name, regExp, description, defaultValue) {
+    return this.add(name, {
+      test: value => regExp.test(value),
+      description,
+      defaultValue
+    })
+  }
+
+  // Aliased methods, empty here to help editors
+
+  fn () {}
+  fun () {}
+  arr () {}
+  obj () {}
+  str () {}
+  num () {}
+  reg () {}
+  bln () {}
+}
+
+const methods = [
+  { alias: 'fn', original: 'function' },
+  { alias: 'fun', original: 'function' },
+  { alias: 'arr', original: 'array' },
+  { alias: 'obj', original: 'object' },
+  { alias: 'str', original: 'string' },
+  { alias: 'num', original: 'number' },
+  { alias: 'reg', original: 'regExp' },
+  { alias: 'bln', original: 'boolean' }
+]
+
+methods.forEach(method => {
+  Arify.prototype[method.alias] = function (...args) {
+    return this[method.original].bind(this)(...args)
+  }
+})
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.4.0</a> on Thu Aug 11 2016 00:24:31 GMT-0500 (Central Daylight Time) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+</footer>
+
+<script>prettyPrint();</script>
+<script src="scripts/linenumber.js"></script>
+</body>
+</html>
