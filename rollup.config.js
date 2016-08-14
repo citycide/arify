@@ -23,7 +23,7 @@ export default {
   targets: [{
     dest: pkg['main'],
     format: 'umd',
-    moduleName: 'trilogy',
+    moduleName: 'arify',
     sourceMap: true
   }, {
     dest: pkg['jsnext:main'],
