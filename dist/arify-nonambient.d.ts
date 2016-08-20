@@ -9,7 +9,7 @@
     any?: boolean;
   }
 
-  class Arify {
+  declare class Arify {
     add (name: string, descriptor: Descriptor): this;
     any (name: string, defaultValue?: any): this;
     anyForm (): this;
@@ -39,9 +39,9 @@
     bln (name: string, defaultValue?: boolean): this;
   }
 
-  function arify (
+  export function arify (
     setup: (v: Arify) => void,
-    fn: (args: Object, rest: Array<string>, form: Array<string>) => any,
+    fn: (args: Object, rest?: Array<string>, form?: Array<string>) => any,
     context?: Object
   ): Function;
 

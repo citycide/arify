@@ -41,7 +41,7 @@ declare module 'arify' {
 
   function arify (
     setup: (v: Arify) => void,
-    fn: (args: Object, rest: Array<string>, form: Array<string>) => any,
+    fn: (args: Object, rest?: Array<string>, form?: Array<string>) => any,
     context?: Object
   ): Function;
 
