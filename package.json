@@ -1,6 +1,6 @@
 {
   "name": "arify",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "JavaScript function overloading. Let your function focus on its function.",
   "main": "dist/arify.js",
   "jsnext:main": "dist/arify.mjs",
@@ -67,7 +67,6 @@
     "mocha": "^2.5.3",
     "rollup": "^0.34.0",
     "rollup-plugin-babel": "^2.6.1",
-    "rollup-plugin-uglify": "^1.0.1",
     "rollup-watch": "^2.5.0"
   },
   "typings": "dist/arify-nonambient.d.ts",
