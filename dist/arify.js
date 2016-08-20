@@ -428,30 +428,6 @@
           defaultValue: defaultValue
         });
       }
-    }, {
-      key: 'fn',
-      value: function fn() {}
-    }, {
-      key: 'fun',
-      value: function fun() {}
-    }, {
-      key: 'arr',
-      value: function arr() {}
-    }, {
-      key: 'obj',
-      value: function obj() {}
-    }, {
-      key: 'str',
-      value: function str() {}
-    }, {
-      key: 'num',
-      value: function num() {}
-    }, {
-      key: 'reg',
-      value: function reg() {}
-    }, {
-      key: 'bln',
-      value: function bln() {}
     }], [{
       key: 'getDefaultValue',
       value: function getDefaultValue(descriptor) {
