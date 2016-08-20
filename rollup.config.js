@@ -16,18 +16,17 @@ export default {
         'transform-runtime'
       ],
       externalHelpers: false,
-      runtimeHelpers: true
+      runtimeHelpers: true,
+      comments: false
     })
   ],
   external,
   targets: [{
     dest: pkg['main'],
     format: 'umd',
-    moduleName: 'arify',
-    sourceMap: true
+    moduleName: 'arify'
   }, {
     dest: pkg['jsnext:main'],
-    format: 'es',
-    sourceMap: true
+    format: 'es'
   }]
 }
