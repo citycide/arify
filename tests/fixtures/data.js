@@ -1,4 +1,4 @@
-const tests = [
+module.exports = [
   {
     type: 'str',
     typeName: 'string',
@@ -56,5 +56,3 @@ const tests = [
     wDef: 'should add a Date parameter with a default value'
   }
 ]
-
-export default tests
