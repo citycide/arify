@@ -1,25 +1,11 @@
-import babel from 'rollup-plugin-babel'
+import buble from 'rollup-plugin-buble'
 
 const pkg = require('./package.json')
 const external = Object.keys(pkg.dependencies)
 
 export default {
-  entry: 'lib/index.js',
-  plugins: [
-    babel({
-      babelrc: false,
-      presets: [
-        ['es2015', { modules: false }],
-        'stage-0'
-      ],
-      plugins: [
-        'transform-runtime'
-      ],
-      externalHelpers: false,
-      runtimeHelpers: true,
-      comments: false
-    })
-  ],
+  entry: 'src/index.js',
+  plugins: [buble()],
   external,
   targets: [{
     dest: pkg['main'],

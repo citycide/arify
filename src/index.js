@@ -19,7 +19,8 @@ arify.error = function (msg) {
 }
 
 // an identifier used to match forms
-const exactMatch = Symbol()
+// every object is unique, ie. {} !== {}
+const exactMatch = {}
 
 class Arify {
   /**
